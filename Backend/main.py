@@ -5,6 +5,7 @@ import osmnx as ox
 import networkx as nx
 import requests
 import random
+from datetime import datetime
 
 app = FastAPI()
 
@@ -59,10 +60,27 @@ def surge_multiplier(demand, supply):
 
 def calculate_fare(distance_meters, base, per_km, surge):
     distance_km = distance_meters / 1000
-    fare = base + (distance_km * per_km)
+    base_price = base + time_increment()
+    fare = base_price + (distance_km * per_km)
     return round(fare * surge, 2)
 
+# -----------------------------
+# Time Based Fare Adjustment
+# -----------------------------
+def time_increment():
+    hour = datetime.now().hour
 
+    if 0 <= hour < 6:         # 12AM - 6AM
+        return 100
+    elif 6 <= hour < 10:      # 6AM - 10AM
+        return 20
+    elif 10 <= hour < 15:     # 10AM - 3PM
+        return 30
+    elif 15 <= hour < 21:     # 3PM - 9PM
+        return 0
+    elif 21 <= hour <= 23:    # 9PM - 12AM
+        return 30
+    return 0
 @app.get("/api/health")
 async def health_check():    
     return {"status": "ok"}
@@ -87,14 +105,21 @@ async def calculate_ride(request: RideRequest):
 
     except Exception as e:
         print(f"Routing error: {e}")
-        raise HTTPException(status_code=500, detail="Route could not be calculated (locations might be too far apart for the simulation radius).")
+        raise HTTPException(
+            status_code=500,
+            detail="Route could not be calculated (locations might be too far apart)."
+        )
 
+    # -----------------------------
     # Simulation Logic
+    # -----------------------------
     demand = random.randint(50, 120)
     supply = random.randint(30, 100)
     surge = surge_multiplier(demand, supply)
 
+    # -----------------------------
     # Pricing Strategies
+    # -----------------------------
     rapido = {
         "Bike": calculate_fare(distance, 10, 4, surge),
         "Auto": calculate_fare(distance, 20, 6, surge),
@@ -113,12 +138,17 @@ async def calculate_ride(request: RideRequest):
         "Car":  calculate_fare(distance, 55, 13, surge)
     }
 
+    # -----------------------------
+    # API Response
+    # -----------------------------
     return {
         "metrics": {
             "distance_km": round(distance / 1000, 2),
             "demand": demand,
             "supply": supply,
-            "surge": surge
+            "surge": surge,
+            "system_time": datetime.now().strftime("%H:%M:%S"),
+            "time_increment": time_increment()
         },
         "fares": {
             "rapido": rapido,
