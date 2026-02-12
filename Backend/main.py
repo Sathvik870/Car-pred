@@ -57,6 +57,7 @@ def surge_multiplier(demand, supply):
         return 1.5
     else:
         return 2.0
+    
 
 def calculate_fare(distance_meters, base, per_km, surge):
     distance_km = distance_meters / 1000
@@ -81,6 +82,58 @@ def time_increment():
     elif 21 <= hour <= 23:    # 9PM - 12AM
         return 30
     return 0
+
+
+def driver_market_conditions():
+    hour = datetime.now().hour
+
+    if 0 <= hour < 6:
+        return {
+            "availability_level": "Very Low",
+            "vehicle_availability_percent": round(random.uniform(10, 20), 2),
+            "acceptance_probability_percent": round(random.uniform(20, 50), 2),
+            "eta_minutes": random.randint(8, 15)
+        }
+
+    elif 6 <= hour < 10:
+        return {
+            "availability_level": "Low-Medium",
+            "vehicle_availability_percent": round(random.uniform(40, 50), 2),
+            "acceptance_probability_percent": round(random.uniform(40, 50), 2),
+            "eta_minutes": random.randint(5, 10)
+        }
+
+    elif 10 <= hour < 15:
+        return {
+            "availability_level": "Medium",
+            "vehicle_availability_percent": round(random.uniform(60, 75), 2),
+            "acceptance_probability_percent": round(random.uniform(60, 75), 2),
+            "eta_minutes": random.randint(4, 8)
+        }
+
+    elif 15 <= hour < 21:
+        return {
+            "availability_level": "High",
+            "vehicle_availability_percent": round(random.uniform(80, 100), 2),
+            "acceptance_probability_percent": round(random.uniform(80, 100), 2),
+            "eta_minutes": random.randint(2, 6)
+        }
+
+    elif 21 <= hour <= 23:
+        return {
+            "availability_level": "Medium-High",
+            "vehicle_availability_percent": round(random.uniform(50, 80), 2),
+            "acceptance_probability_percent": round(random.uniform(50, 80), 2),
+            "eta_minutes": random.randint(4, 9)
+        }
+
+    return {
+        "availability_level": "Unknown",
+        "vehicle_availability_percent": round(random.uniform(40, 60), 2),
+        "acceptance_probability_percent": round(random.uniform(40, 60), 2),
+        "eta_minutes": random.randint(5, 10)
+    }
+
 @app.get("/api/health")
 async def health_check():    
     return {"status": "ok"}
@@ -118,6 +171,21 @@ async def calculate_ride(request: RideRequest):
     surge = surge_multiplier(demand, supply)
 
     # -----------------------------
+    # Driver Market Simulation
+    # -----------------------------
+    market = driver_market_conditions()
+
+    acceptance_probability = random.randint(
+        market["probability_range"][0],
+        market["probability_range"][1]
+    )
+
+    estimated_eta = random.randint(
+        market["eta_range"][0],
+        market["eta_range"][1]
+    )
+
+    # -----------------------------
     # Pricing Strategies
     # -----------------------------
     rapido = {
@@ -142,20 +210,26 @@ async def calculate_ride(request: RideRequest):
     # API Response
     # -----------------------------
     return {
-        "metrics": {
-            "distance_km": round(distance / 1000, 2),
-            "demand": demand,
-            "supply": supply,
-            "surge": surge,
-            "system_time": datetime.now().strftime("%H:%M:%S"),
-            "time_increment": time_increment()
-        },
-        "fares": {
-            "rapido": rapido,
-            "ola": ola,
-            "uber": uber
-        },
-        "path": route_coords,
-        "start_coords": [lat1, lon1],
-        "end_coords": [lat2, lon2]
-    }
+    "metrics": {
+        "distance_km": round(distance / 1000, 2),
+        "demand": demand,
+        "supply": supply,
+        "surge": surge,
+        "system_time": datetime.now().strftime("%H:%M:%S"),
+        "time_increment": time_increment()
+    },
+    "driver_simulation": {
+        "availability_level": market["availability_level"],
+        "visible_nearby_captains": market["visible_vehicles"],
+        "acceptance_probability_percent": acceptance_probability,
+        "estimated_arrival_time_minutes": estimated_eta
+    },
+    "fares": {
+        "rapido": rapido,
+        "ola": ola,
+        "uber": uber
+    },
+    "path": route_coords,
+    "start_coords": [lat1, lon1],
+    "end_coords": [lat2, lon2]
+}
