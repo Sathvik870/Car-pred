@@ -1,0 +1,1 @@
+to run this install the libraries in the req.txt file and the run this : uvicorn main:app --reload
