@@ -6,7 +6,7 @@ import networkx as nx
 import requests
 import random
 from datetime import datetime
-
+from geopy.distance import geodesic
 app = FastAPI()
 
 app.add_middleware(
@@ -129,8 +129,23 @@ async def calculate_ride(request: RideRequest):
     if not lat1 or not lat2:
         raise HTTPException(status_code=400, detail="Invalid locations.")
 
+    # try:
+    #     G = ox.graph_from_point((lat1, lon1), dist=10000, network_type='drive')
+    #     orig = ox.nearest_nodes(G, lon1, lat1)
+    #     dest = ox.nearest_nodes(G, lon2, lat2)
+    #     route = nx.shortest_path(G, orig, dest, weight='length')
+    #     distance = nx.shortest_path_length(G, orig, dest, weight='length')
+    #     route_coords = [(G.nodes[n]['y'], G.nodes[n]['x']) for n in route]
     try:
-        G = ox.graph_from_point((lat1, lon1), dist=10000, network_type='drive')
+        straight_distance_km = geodesic((lat1, lon1), (lat2, lon2)).km
+        buffer_km = 5
+        graph_radius_m = (straight_distance_km + buffer_km) * 1000
+
+        G = ox.graph_from_point(
+            (lat1, lon1),
+            dist=graph_radius_m,
+            network_type='drive'
+        )
         orig = ox.nearest_nodes(G, lon1, lat1)
         dest = ox.nearest_nodes(G, lon2, lat2)
         route = nx.shortest_path(G, orig, dest, weight='length')
